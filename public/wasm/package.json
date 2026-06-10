@@ -1,0 +1,18 @@
+{
+  "name": "wasm-video",
+  "type": "module",
+  "collaborators": [
+    "Adeir Junior <hello@adeir.me>"
+  ],
+  "version": "0.1.0",
+  "files": [
+    "wasm_video_bg.wasm",
+    "wasm_video.js",
+    "wasm_video.d.ts"
+  ],
+  "main": "wasm_video.js",
+  "types": "wasm_video.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
