@@ -16,8 +16,28 @@ const VIDEO_BITRATES: Record<string, number> = {
   '1080p': 10_000_000,
 };
 
+type VideoFormat = 'webm' | 'mp4';
+
+const FORMAT_MIME_TYPES: Record<VideoFormat, string[]> = {
+  webm: [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+  ],
+  mp4: [
+    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+    'video/mp4;codecs=h264,aac',
+    'video/mp4',
+  ],
+};
+
+const getSupportedMimeType = (format: VideoFormat) => (
+  FORMAT_MIME_TYPES[format].find(mimeType => MediaRecorder.isTypeSupported(mimeType)) ?? null
+);
+
 export default function Recorder() {
   const [resolution, setResolution] = useState('720p');
+  const [videoFormat, setVideoFormat] = useState<VideoFormat>('webm');
   const [isVertical, setIsVertical] = useState(false);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
@@ -358,9 +378,16 @@ export default function Recorder() {
     clearRecording();
     setRecordingTime(0);
     attachLiveStream();
+    chunksRef.current = [];
 
     const canvas = recordingCanvasRef.current;
     if (!canvas || !videoRef.current || !liveStreamRef.current) return;
+
+    const mimeType = getSupportedMimeType(videoFormat);
+    if (!mimeType) {
+      setStreamError(`Gravação em ${videoFormat.toUpperCase()} não é suportada neste navegador.`);
+      return;
+    }
 
     canvas.width = recordingWidth;
     canvas.height = recordingHeight;
@@ -380,10 +407,6 @@ export default function Recorder() {
       finalStream = new MediaStream([...stream.getVideoTracks(), ...audioTracks]);
     }
 
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9'
-      : 'video/webm';
-
     const mediaRecorder = new MediaRecorder(finalStream, {
       mimeType,
       videoBitsPerSecond: VIDEO_BITRATES[resolution] ?? VIDEO_BITRATES['720p'],
@@ -397,9 +420,9 @@ export default function Recorder() {
 
     mediaRecorder.onstop = () => {
       stopRecordingRender();
-      const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+      const blob = new Blob(chunksRef.current, { type: mimeType });
       const url = URL.createObjectURL(blob);
-      const name = `recording-${resolution}-${isVertical ? 'vertical' : 'horizontal'}.webm`;
+      const name = `recording-${resolution}-${isVertical ? 'vertical' : 'horizontal'}.${videoFormat}`;
       recordingUrlRef.current = url;
       setRecordingUrl(url);
       setRecordingName(name);
@@ -408,8 +431,9 @@ export default function Recorder() {
 
     mediaRecorderRef.current = mediaRecorder;
     mediaRecorder.start();
+    setStreamError(null);
     setIsRecording(true);
-  }, [attachLiveStream, clearRecording, drawRecordingFrame, isVertical, recordingHeight, recordingWidth, resolution, stopRecordingRender]);
+  }, [attachLiveStream, clearRecording, drawRecordingFrame, isVertical, recordingHeight, recordingWidth, resolution, stopRecordingRender, videoFormat]);
 
   const stopRecording = useCallback(() => {
     mediaRecorderRef.current?.stop();
@@ -744,6 +768,28 @@ export default function Recorder() {
                           <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
                           Vertical
                         </button>
+                      </div>
+                    </div>
+
+                    {/* Format Selector */}
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[9px] font-mono tracking-widest text-zinc-500 uppercase">
+                        Formato
+                      </span>
+                      <div className="grid grid-cols-2 gap-1 bg-zinc-950/60 border border-zinc-800/50 p-1 rounded-xl">
+                        {(['webm', 'mp4'] as VideoFormat[]).map((format) => (
+                          <button
+                            key={format}
+                            onClick={() => setVideoFormat(format)}
+                            className={`text-[10px] py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                              videoFormat === format
+                                ? 'bg-zinc-800 text-white shadow-sm'
+                                : 'text-zinc-500 hover:text-zinc-300'
+                            }`}
+                          >
+                            {format.toUpperCase()}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
